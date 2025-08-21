@@ -1,0 +1,7 @@
+PyQt5
+python-docx
+reportlab
+pywin32
+comtypes
+Pillow
+lxml

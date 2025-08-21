@@ -1,2 +1,3 @@
-# OneNote-to-WORD-and-PDF
-OneNote to WORD and PDF
+#面向AI编程😊
+大表格处理有问题😒
+其他基本OK，附件整不明白。需要改的自己下载修修补补就行。👍
