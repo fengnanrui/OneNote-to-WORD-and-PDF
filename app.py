@@ -2033,7 +2033,104 @@ class ModernOneNoteGUI(QMainWindow):
             self._item_cache.clear()
 
     def _on_item_changed(self, item, col):
-        self._update_selection(); self._update_convert()
+        """处理树控件项目变化，实现级联勾选"""
+        if col != 0:  # 只处理第一列的勾选变化
+            return
+            
+        # 临时阻塞信号，避免级联操作触发无限递归
+        self.tree.blockSignals(True)
+        
+        try:
+            data = item.data(0, Qt.UserRole)
+            if not data:
+                return
+                
+            item_type = data.get('type')
+            check_state = item.checkState(0)
+            
+            if item_type == 'notebook':
+                # 勾选/取消勾选笔记本时，级联到所有分区和页面
+                self._cascade_check_notebook(item, check_state)
+            elif item_type == 'section':
+                # 勾选/取消勾选分区时，级联到该分区下的所有页面
+                self._cascade_check_section(item, check_state)
+            elif item_type == 'page':
+                # 页面勾选变化时，检查是否需要更新父分区的状态
+                self._update_parent_check_state(item)
+                
+        finally:
+            # 恢复信号
+            self.tree.blockSignals(False)
+            # 更新选择状态和转换按钮
+            self._update_selection()
+            self._update_convert()
+    
+    def _cascade_check_notebook(self, notebook_item, check_state):
+        """级联勾选笔记本下的所有分区和页面"""
+        for i in range(notebook_item.childCount()):
+            section_item = notebook_item.child(i)
+            section_item.setCheckState(0, check_state)
+            # 级联到该分区下的所有页面
+            self._cascade_check_section(section_item, check_state)
+    
+    def _cascade_check_section(self, section_item, check_state):
+        """级联勾选分区下的所有页面"""
+        for i in range(section_item.childCount()):
+            page_item = section_item.child(i)
+            page_item.setCheckState(0, check_state)
+    
+    def _update_parent_check_state(self, page_item):
+        """根据子页面的勾选状态更新父分区的勾选状态"""
+        section_item = page_item.parent()
+        if not section_item:
+            return
+            
+        # 检查分区下所有页面的勾选状态
+        checked_count = 0
+        total_count = section_item.childCount()
+        
+        for i in range(total_count):
+            child = section_item.child(i)
+            if child.checkState(0) == Qt.Checked:
+                checked_count += 1
+        
+        # 根据子页面状态设置分区状态
+        if checked_count == 0:
+            section_item.setCheckState(0, Qt.Unchecked)
+        elif checked_count == total_count:
+            section_item.setCheckState(0, Qt.Checked)
+        else:
+            section_item.setCheckState(0, Qt.PartiallyChecked)
+        
+        # 递归更新笔记本状态
+        self._update_notebook_check_state(section_item)
+    
+    def _update_notebook_check_state(self, section_item):
+        """根据分区状态更新笔记本的勾选状态"""
+        notebook_item = section_item.parent()
+        if not notebook_item:
+            return
+            
+        # 检查笔记本下所有分区的勾选状态
+        checked_count = 0
+        partial_count = 0
+        total_count = notebook_item.childCount()
+        
+        for i in range(total_count):
+            child = notebook_item.child(i)
+            child_state = child.checkState(0)
+            if child_state == Qt.Checked:
+                checked_count += 1
+            elif child_state == Qt.PartiallyChecked:
+                partial_count += 1
+        
+        # 根据分区状态设置笔记本状态
+        if checked_count == 0 and partial_count == 0:
+            notebook_item.setCheckState(0, Qt.Unchecked)
+        elif checked_count == total_count:
+            notebook_item.setCheckState(0, Qt.Checked)
+        else:
+            notebook_item.setCheckState(0, Qt.PartiallyChecked)
 
     def _update_selection(self):
         sel=[]; it=QTreeWidgetItemIterator(self.tree)
